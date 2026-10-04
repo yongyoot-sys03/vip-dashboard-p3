@@ -8,5 +8,3 @@ sdk_version: 4.44.1
 app_file: app.py
 pinned: false
 ---
-
-# ระบบวิเคราะห์สถิติลูกค้ารายใหญ่ สังกัด ปข.3
