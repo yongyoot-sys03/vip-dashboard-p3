@@ -1,4 +1,3 @@
-huggingface_hub==0.24.7
 pandas
 gspread
 google-auth
