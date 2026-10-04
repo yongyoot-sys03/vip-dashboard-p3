@@ -1,12 +1,12 @@
 import gradio as gr
 
-def render(role):
+def build_tab1(role="ADMIN"):
     visible = role in ["ADMIN", "REG03", "MANAGER"]
     
     with gr.Tab("📊 Executive Summary", visible=visible):
         gr.Markdown("### 📈 สรุปภาพรวมผลประกอบการรายปี")
         
-        # --- กล่อง KPI 4 ใบ (ใช้ HTML + CSS เพื่อให้มีมิตินูน) ---
+        # --- กล่อง KPI 4 ใบ ---
         with gr.Row():
             gr.HTML("""
                 <div class='kpi-card'>
@@ -48,7 +48,7 @@ def render(role):
             with gr.Column(scale=1):
                 gr.Markdown("### 🤖 AI Executive Briefing (สรุปวิเคราะห์เชิงลึก)")
                 gr.HTML("""
-                <div style='background-color:#fffbeb; border-left: 5px solid #f59e0b; padding:15px; border-radius:8px; box-shadow: 0 4px 6px rgba(0,0,0,0.05);'>
+                <div style='background-color:#fffbeb; border-left: 5px solid #f59e0b; padding:15px; border-radius:8px; box-shadow: 4px 4px 10px rgba(163,177,198,0.4), -4px -4px 10px rgba(255,255,255, 0.8);'>
                     <p><b>📌 ภาพรวม:</b> รายได้หลักมาจาก 'บริการไปรษณียภัณฑ์' คิดเป็น 75% ของรายได้ทั้งหมด ขับเคลื่อนโดยกลุ่ม 'สินเชื่อ'</p>
                     <p><b>⚠️ สัญญาณเตือน:</b> พบลูกค้ารายใหญ่ 2 รายในหมวด 'ประกันภัย' มียอดใช้บริการโลจิสติกส์ลดลงอย่างมีนัยสำคัญ</p>
                     <p><b>💡 ข้อเสนอแนะ:</b> ควรจัดแคมเปญกระตุ้นยอด eCo-Post ในกลุ่มลูกค้าสินเชื่อ (B836)</p>
