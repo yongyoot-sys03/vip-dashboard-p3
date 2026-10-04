@@ -9,7 +9,7 @@ def build_tab1(year_input, phone_input_state):
         phone = current_phone if current_phone else "admin"
         year = selected_year if selected_year else "2569"
         
-        # 1. ดึงข้อมูลจริงจาก Google Sheets
+        # 1. ดึงข้อมูลจริงจาก Google Sheets ผ่าน data_manager
         try:
             df = fetch_and_process_data(phone_number=phone, year=year)
         except Exception as e:
@@ -24,23 +24,29 @@ def build_tab1(year_input, phone_input_state):
         if not df.empty:
             # คำนวณยอดเงินรวมทั้งหมด
             if 'ยอดเงินรวม' in df.columns:
-                total_rev = df['ยอดเงินรวม'].sum()
+                total_rev = pd.to_numeric(df['ยอดเงินรวม'], errors='coerce').sum()
             else:
-                # กรณีหาคอลัมน์ 'ยอดเงินรวม' ไม่เจอ ให้รวมคอลัมน์สุดท้ายของ dataframe
                 total_rev = pd.to_numeric(df.iloc[:, -1], errors='coerce').sum()
 
             # คำนวณจำนวนชิ้นไปรษณียภัณฑ์
             if 'ไปรษณียภัณฑ์_ชิ้น' in df.columns:
-                mail_pcs = df['ไปรษณียภัณฑ์_ชิ้น'].sum()
+                mail_pcs = pd.to_numeric(df['ไปรษณียภัณฑ์_ชิ้น'], errors='coerce').sum()
 
-            # คำนวณคอลัมน์ชิ้นอื่นๆ หากมีข้อมูล
-            logis_cols = [c for c in df.columns if 'โลจิสติกส์' in str(c)]
-            if logis_cols:
-                logis_pcs = pd.to_numeric(df[logis_cols[0]], errors='coerce').sum()
+            # คำนวณจำนวนชิ้นขนส่งและโลจิสติกส์
+            if 'ขนส่งโลจิสติกส์_ชิ้น' in df.columns:
+                logis_pcs = pd.to_numeric(df['ขนส่งโลจิสติกส์_ชิ้น'], errors='coerce').sum()
+            else:
+                logis_cols = [c for c in df.columns if 'โลจิสติกส์' in str(c)]
+                if logis_cols:
+                    logis_pcs = pd.to_numeric(df[logis_cols[0]], errors='coerce').sum()
 
-            inter_cols = [c for c in df.columns if 'ต่างประเทศ' in str(c) or 'ระหว่างประเทศ' in str(c)]
-            if inter_cols:
-                inter_pcs = pd.to_numeric(df[inter_cols[0]], errors='coerce').sum()
+            # คำนวณจำนวนชิ้นระหว่างประเทศ
+            if 'ระหว่างประเทศ_ชิ้น' in df.columns:
+                inter_pcs = pd.to_numeric(df['ระหว่างประเทศ_ชิ้น'], errors='coerce').sum()
+            else:
+                inter_cols = [c for c in df.columns if 'ต่างประเทศ' in str(c) or 'ระหว่างประเทศ' in str(c)]
+                if inter_cols:
+                    inter_pcs = pd.to_numeric(df[inter_cols[0]], errors='coerce').sum()
 
         # 3. แสดงผลหน้าจอ UI
         with gr.Column():
