@@ -2,17 +2,27 @@ import os
 import json
 import pandas as pd
 import gspread
-from oauth2client.service_account import ServiceAccountCredentials
+from google.oauth2.service_account import Credentials
 
 def get_gsheet_client():
-    scope = ["https://spreadsheets.google.com/feeds", "https://www.googleapis.com/auth/drive"]
+    scope = [
+        "https://www.googleapis.com/auth/spreadsheets",
+        "https://www.googleapis.com/auth/drive"
+    ]
     google_creds_json = os.environ.get("GOOGLE_CREDENTIALS")
     
     if google_creds_json:
-        creds_dict = json.loads(google_creds_json)
-        creds = ServiceAccountCredentials.from_json_keyfile_dict(creds_dict, scope)
+        # กรณีรันบน Hugging Face Spaces (อ่านจาก Secret)
+        try:
+            creds_dict = json.loads(google_creds_json)
+            creds = Credentials.from_service_account_info(creds_dict, scopes=scope)
+        except Exception as e:
+            # กรณี Secret โดนครอบด้วย String หรือฟอร์แมตหลุด
+            print(f"⚠️ JSON Parse Error in GOOGLE_CREDENTIALS: {e}")
+            raise e
     else:
-        creds = ServiceAccountCredentials.from_json_keyfile_name("credentials.json", scope)
+        # กรณีรันทดสอบบนเครื่องคอมพิวเตอร์ Local
+        creds = Credentials.from_service_account_file("credentials.json", scopes=scope)
         
     return gspread.authorize(creds)
 
@@ -43,7 +53,7 @@ def get_user_profile_by_phone(phone_input: str):
                 "zipcode": str(row['ZIPCODE'])
             }
     except Exception as e:
-        print(f"⚠️ User Auth Error: {e}")
+        print(f"⚠️ User Auth Exception: {e}")
 
     return {
         "phone": "admin",
@@ -59,10 +69,10 @@ def fetch_and_process_data(phone_number: str, year: str):
         
         data_spreadsheet = client.open("รายได้ลูกค้ารายองค์กร/หน่วยงานราชการ/ห้างร้านต่างๆ ปข.3")
         
-        # 1. ดึง Master List
+        # 1. ดึง Master List ชีต 'รายชื่อ'
         try:
             df_master = pd.DataFrame(data_spreadsheet.worksheet("รายชื่อ").get_all_records())
-            df_master.columns = [str(c) for c in df_master.columns] # บังคับ Header เป็น String
+            df_master.columns = [str(c) for c in df_master.columns]
         except Exception as e:
             df_master = pd.DataFrame()
 
@@ -75,11 +85,11 @@ def fetch_and_process_data(phone_number: str, year: str):
             data_rows = raw_values[8:]
             df_sales = pd.DataFrame(data_rows)
             
-            # ตัดแถว 'รวม' ด้านล่างออก เพื่อป้องกันคำนวณซ้ำ
+            # ตัดแถว 'รวม' ด้านล่างออก เพื่อป้องกันการคำนวณซ้ำ
             df_sales = df_sales[~df_sales[1].astype(str).str.contains("รวม", na=False)]
             df_sales = df_sales[~df_sales[0].astype(str).str.contains("รวม", na=False)]
 
-            # ตั้งชื่อคอลัมน์เบื้องต้น
+            # ตั้งชื่อคอลัมน์หลัก
             df_sales.rename(columns={
                 1: 'รายชื่อลูกค้า',
                 2: 'กลุ่ม',
@@ -91,7 +101,7 @@ def fetch_and_process_data(phone_number: str, year: str):
             last_col_idx = df_sales.columns[-1]
             df_sales['ยอดเงินรวม'] = df_sales[last_col_idx].apply(clean_numeric)
 
-            # คอลัมน์ index 5 = ชิ้น
+            # คอลัมน์ Index 5 = ชิ้น
             if 5 in df_sales.columns:
                 df_sales['ไปรษณียภัณฑ์_ชิ้น'] = df_sales[5].apply(clean_numeric)
 
@@ -125,11 +135,11 @@ def fetch_and_process_data(phone_number: str, year: str):
                     (df_merged['สังกัด ปณ.'].astype(str).str.contains(zipcode, na=False))
                 ]
 
-        # 🎯 [สำคัญมาก] แปลงชื่อ Header ทุกคอลัมน์ให้เป็น String 100% แก้ไข ValidationError ของ Gradio
+        # บังคับชื่อ Header ทุกคอลัมน์เป็น String เพื่อป้องกัน Gradio Pydantic Error
         df_merged.columns = [str(c) for c in df_merged.columns]
 
         return df_merged
 
     except Exception as e:
-        print(f"❌ Fetch Data Error: {e}")
+        print(f"❌ Detailed Fetch Data Error: {type(e).__name__} - {e}")
         return pd.DataFrame()
