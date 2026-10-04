@@ -57,14 +57,13 @@ def fetch_and_process_data(phone_number: str, year: str):
         client = get_gsheet_client()
         user_info = get_user_profile_by_phone(phone_number)
         
-        # เปิดไฟล์ข้อมูล
-        data_spreadsheet = client.open("รายได้ลูกค้าองค์กร/หน่วยงานราชการ/ห้างร้านต่างๆ ปข.3")
+        data_spreadsheet = client.open("รายได้ลูกค้ารายองค์กร/หน่วยงานราชการ/ห้างร้านต่างๆ ปข.3")
         
         # 1. ดึง Master List
         try:
             df_master = pd.DataFrame(data_spreadsheet.worksheet("รายชื่อ").get_all_records())
+            df_master.columns = [str(c) for c in df_master.columns] # บังคับ Header เป็น String
         except Exception as e:
-            print(f"⚠️ Master List Read Error: {e}")
             df_master = pd.DataFrame()
 
         # 2. อ่านข้อมูลรายปี
@@ -76,11 +75,11 @@ def fetch_and_process_data(phone_number: str, year: str):
             data_rows = raw_values[8:]
             df_sales = pd.DataFrame(data_rows)
             
-            # ตัดแถว 'รวมทั้งสิ้น' ด้านล่างออก เพื่อป้องกันคำนวณซ้ำ
+            # ตัดแถว 'รวม' ด้านล่างออก เพื่อป้องกันคำนวณซ้ำ
             df_sales = df_sales[~df_sales[1].astype(str).str.contains("รวม", na=False)]
             df_sales = df_sales[~df_sales[0].astype(str).str.contains("รวม", na=False)]
 
-            # ตั้งชื่อคอลัมน์พื้นฐาน
+            # ตั้งชื่อคอลัมน์เบื้องต้น
             df_sales.rename(columns={
                 1: 'รายชื่อลูกค้า',
                 2: 'กลุ่ม',
@@ -92,7 +91,7 @@ def fetch_and_process_data(phone_number: str, year: str):
             last_col_idx = df_sales.columns[-1]
             df_sales['ยอดเงินรวม'] = df_sales[last_col_idx].apply(clean_numeric)
 
-            # คอลัมน์ 5 = ชิ้น, 6 = บาท (ไปรษณียภัณฑ์)
+            # คอลัมน์ index 5 = ชิ้น
             if 5 in df_sales.columns:
                 df_sales['ไปรษณียภัณฑ์_ชิ้น'] = df_sales[5].apply(clean_numeric)
 
@@ -118,18 +117,19 @@ def fetch_and_process_data(phone_number: str, year: str):
         dept = user_info['department'].replace("ปจ.", "").replace("ปณ.", "").strip()
         zipcode = user_info['zipcode']
 
-        if role in ["ADMIN", "REG03"]:
-            return df_merged
-        else:
+        if role not in ["ADMIN", "REG03"]:
             if 'สังกัด ปณ.' in df_merged.columns:
-                filtered_df = df_merged[
+                df_merged = df_merged[
                     (df_merged['สังกัด ปณ.'].astype(str).str.contains(dept, na=False)) |
                     (df_merged['กลุ่ม ปจ.'].astype(str).str.contains(dept, na=False)) |
                     (df_merged['สังกัด ปณ.'].astype(str).str.contains(zipcode, na=False))
                 ]
-                return filtered_df
-            return df_merged
+
+        # 🎯 [สำคัญมาก] แปลงชื่อ Header ทุกคอลัมน์ให้เป็น String 100% แก้ไข ValidationError ของ Gradio
+        df_merged.columns = [str(c) for c in df_merged.columns]
+
+        return df_merged
 
     except Exception as e:
-        print(f"❌ Fetch Data Critical Error: {e}")
+        print(f"❌ Fetch Data Error: {e}")
         return pd.DataFrame()
