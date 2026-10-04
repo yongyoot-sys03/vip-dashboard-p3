@@ -12,5 +12,5 @@ jobs:
           fetch-depth: 0
       - name: Push to HF
         env:
-          HF_TOKEN: ${{ secrets.HF_TOKEN }}
+          HF_TOKEN: ${{ secrets.VIPDASHHFKEYS }}
         run: git push --force https://yongyoot1403:$HF_TOKEN@huggingface.co/spaces/yongyoot1403/vip-dashboard-p3 main
