@@ -1,14 +1,12 @@
 import gradio as gr
 
-def greet(name):
-    return f"ระบบพร้อมทำงานแล้ว คุณ {name}!"
+def check_status():
+    return "✅ เซิร์ฟเวอร์ทำงานสมบูรณ์แล้ว! ไม่มี Error แล้วครับ"
 
-demo = gr.Interface(
-    fn=greet,
-    inputs=gr.Textbox(label="ชื่อของคุณ"),
-    outputs=gr.Textbox(label="ผลลัพธ์"),
-    title="HF Test Dashboard"
-)
+with gr.Blocks() as demo:
+    gr.Markdown("# 🚀 ทดสอบระบบ VIP Dashboard P3")
+    out = gr.Textbox(label="สถานะระบบ")
+    btn = gr.Button("คลิกเพื่อเช็กสถานะ")
+    btn.click(fn=check_status, outputs=out)
 
-if __name__ == "__main__":
-    demo.launch()
+demo.launch()
