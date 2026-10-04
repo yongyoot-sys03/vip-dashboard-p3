@@ -1,6 +1,7 @@
 import os
 import gradio as gr
 import spaces
+from data_manager import fetch_and_process_data, get_user_info
 
 # นำเข้าฟังก์ชันสร้างหน้าตา UI จากโฟลเดอร์ tabs 
 from tabs.tab_1_exec import build_tab1
@@ -139,23 +140,17 @@ with gr.Blocks(title="Dashboard ปข.3", css=custom_css) as demo:
     # 1. กล่อง Header ที่จะเปลี่ยนชื่อตามคน Login
     header_html_box = gr.HTML()
     
-    # 2. แผงควบคุมหลัก (Global Filters)
+    # ตัวเลือกปีงบประมาณจริงจาก Google Sheets
     with gr.Row():
-        with gr.Column(scale=2):
-            year_dropdown = gr.Dropdown(
-                choices=["2023", "2024", "2025", "2026"], 
-                value="2024", 
-                label="📅 เลือกปีงบประมาณ", 
-                interactive=True
-            )
-        # เผื่อไว้สำหรับคนที่เป็น ADMIN สามารถเลือกดูเจาะจงราย ปณ. ได้
-        with gr.Column(scale=2):
-            branch_dropdown = gr.Dropdown(
-                choices=["ทั้งหมด", "30000", "30001", "30002"], 
-                value="ทั้งหมด", 
-                label="🏢 เลือกที่ทำการ (เฉพาะส่วนกลาง)", 
-                interactive=True
-            )
+        selected_year = gr.Dropdown(
+            choices=["2569", "2568", "2567", "2566"], 
+            value="2569", 
+            label="📅 เลือกปีงบประมาณข้อมูล", 
+            interactive=True
+        )
+        refresh_btn = gr.Button("🔄 อัปเดตข้อมูลล่าสุดจาก Google Sheets", scale=0)
+
+        
     
     # 3. ส่วนแท็บต่างๆ (รับค่าจาก Dropdown ไปใช้งาน)
     with gr.Tabs():
@@ -175,6 +170,5 @@ with gr.Blocks(title="Dashboard ปข.3", css=custom_css) as demo:
         outputs=[header_html_box, user_role_state]
     )
 
-# ใส่ระบบ Auth จำลอง (เปลี่ยนรหัสผ่านจริงได้ตามต้องการ)
 if __name__ == "__main__":
-    demo.launch(auth=[("ADMIN", "password123"), ("30000", "pass30000")])
+    app.launch()
