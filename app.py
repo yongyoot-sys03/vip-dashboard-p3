@@ -57,6 +57,40 @@ h1, h2, h3, Markdown {
     color: #1a202c !important;
     text-shadow: 1px 1px 2px rgba(255,255,255,0.8) !important;
 }
+
+/* สไตล์กล่อง KPI แบบ Neumorphism */
+.kpi-card {
+    background-color: #e0e5ec !important;
+    border-radius: 20px !important;
+    box-shadow: 7px 7px 14px rgba(163,177,198,0.7), -7px -7px 14px rgba(255,255,255, 0.9) !important;
+    padding: 20px !important;
+    text-align: center !important;
+    margin: 10px !important;
+    transition: transform 0.2s ease-in-out !important;
+}
+
+/* เอฟเฟกต์เวลาเอาเมาส์ชี้ให้กล่องลอยขึ้นนิดๆ */
+.kpi-card:hover {
+    transform: translateY(-5px) !important;
+}
+
+.kpi-icon {
+    font-size: 35px !important;
+    margin-bottom: 10px !important;
+}
+
+.kpi-title {
+    font-size: 14px !important;
+    color: #4a5568 !important;
+    font-weight: 500 !important;
+}
+
+.kpi-value {
+    font-size: 26px !important;
+    color: #1a202c !important;
+    font-weight: 700 !important;
+    margin-top: 5px !important;
+}
 """
 
 # ==========================================
