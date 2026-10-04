@@ -1,62 +1,62 @@
+import os
+import json
 import pandas as pd
 import gspread
 from oauth2client.service_account import ServiceAccountCredentials
 
 def get_gsheet_client():
     scope = ["https://spreadsheets.google.com/feeds", "https://www.googleapis.com/auth/drive"]
-    
-    # ดึงค่าจาก Secret บน Hugging Face Spaces
     google_creds_json = os.environ.get("GOOGLE_CREDENTIALS")
     
     if google_creds_json:
-        # หากอยู่บน HF Spaces ให้โหลดจาก Environment Variable
         creds_dict = json.loads(google_creds_json)
         creds = ServiceAccountCredentials.from_json_keyfile_dict(creds_dict, scope)
     else:
-        # หากรันทดสอบในเครื่องคอมพิวเตอร์ ให้ดึงจากไฟล์Local
         creds = ServiceAccountCredentials.from_json_keyfile_name("credentials.json", scope)
         
     return gspread.authorize(creds)
 
-def fetch_and_process_data(user_id: str, year: str):
-    """
-    1. อ่านตาราง Users_Auth จากชีต Login
-    2. เช็ก Role, ZIPCODE และ Department ของ User ที่เข้าใช้งาน
-    3. รวมตารางรายได้ (2566-2569) เข้ากับตาราง 'รายชื่อ' Master List
-    4. กรองข้อมูลเฉพาะสังกัดที่ User นั้นมีสิทธิ์มองเห็น
-    """
+def get_user_profile_by_phone(phone_input: str):
+    """ ค้นหาข้อมูล User จากคอลัมน์ PhoneNumber """
     client = get_gsheet_client()
-    
-    # -------------------------------------------------------------
-    # Step 1: ตรวจสอบสิทธิ์จากชีต Login (Users_Auth)
-    # -------------------------------------------------------------
     login_spreadsheet = client.open("Login AIMKTReg03")
     df_users = pd.DataFrame(login_spreadsheet.worksheet("Users_Auth").get_all_records())
     
-    # ดึงข้อมูลของ User ที่กำลัง Login
-    user_info = df_users[df_users['UserID'].astype(str) == str(user_id)]
+    # แปลงเป็น string เพื่อป้องกันปัญหา 0 หายหน้าเบอร์โทรศัพท์
+    df_users['PhoneNumber'] = df_users['PhoneNumber'].astype(str).str.strip()
+    target_phone = str(phone_input).strip() if phone_input else "admin"
     
-    if user_info.empty:
-        # กรณีไม่พบ User หรือเป็น Default ADMIN
-        user_role = "Admin"
-        user_zip = "admin"
-        user_dept = "Admin"
-    else:
-        user_role = user_info.iloc[0]['Role']
-        user_zip = str(user_info.iloc[0]['ZIPCODE'])
-        user_dept = str(user_info.iloc[0]['Department'])
+    user_match = df_users[df_users['PhoneNumber'] == target_phone]
+    
+    if user_match.empty:
+        # ค่า Default หากไม่พบเบอร์ในระบบ (แสดงผลเป็น Admin)
+        return {
+            "phone": "admin",
+            "department": "ผู้บริหาร ปข.3",
+            "role": "Admin",
+            "zipcode": "admin"
+        }
+    
+    row = user_match.iloc[0]
+    return {
+        "phone": str(row['PhoneNumber']),
+        "department": str(row['Department']), # แสดงผลฝั่ง UI
+        "role": str(row['Role']),              # ใช้คุมสิทธิ์
+        "zipcode": str(row['ZIPCODE'])          # ใช้คุมพื้นที่
+    }
 
-    # -------------------------------------------------------------
-    # Step 2: ดึงข้อมูล Master List และ ข้อมูลรายได้ตามปีที่เลือก
-    # -------------------------------------------------------------
+def fetch_and_process_data(phone_number: str, year: str):
+    """ ดึงและกรองข้อมูลตามสิทธิ์ Role และสังกัดที่ผูกกับ PhoneNumber """
+    client = get_gsheet_client()
+    user_info = get_user_profile_by_phone(phone_number)
+    
     data_spreadsheet = client.open("รายได้ลูกค้ารายองค์กร/หน่วยงานราชการ/ห้างร้านต่างๆ ปย.3")
     
-    # อ่าน Master List จากชีต 'รายชื่อ'
+    # 1. อ่าน Master List ชีต 'รายชื่อ'
     df_master = pd.DataFrame(data_spreadsheet.worksheet("รายชื่อ").get_all_records())
     
-    # อ่านข้อมูลยอดขายตามปีที่เลือก (เช่น '2569' หรือ '2568')
-    if year == "2569":
-        # ดึง Sheet รายเดือนของปี 2569 มารวมกัน
+    # 2. อ่านข้อมูลยอดขาย
+    if str(year) == "2569":
         monthly_dfs = []
         for m in range(1, 13):
             month_str = f"2569_{m:02d}"
@@ -68,16 +68,14 @@ def fetch_and_process_data(user_id: str, year: str):
         df_sales = pd.concat(monthly_dfs, ignore_index=True) if monthly_dfs else pd.DataFrame()
     else:
         try:
-            df_sales = pd.DataFrame(data_spreadsheet.worksheet(year).get_all_records())
+            df_sales = pd.DataFrame(data_spreadsheet.worksheet(str(year)).get_all_records())
         except:
             df_sales = pd.DataFrame()
 
     if df_sales.empty:
         return pd.DataFrame()
 
-    # -------------------------------------------------------------
-    # Step 3: VLOOKUP (Merge) รวมตารางยอดขายเข้ากับ Master List
-    # -------------------------------------------------------------
+    # 3. Merge ข้อมูลเพื่อดึงคอลัมน์สังกัด ปณ.
     df_merged = pd.merge(
         df_sales, 
         df_master[['รายชื่อลูกค้า', 'กลุ่ม ปจ.', 'สังกัด ปณ.']], 
@@ -85,22 +83,20 @@ def fetch_and_process_data(user_id: str, year: str):
         how='left'
     )
 
-    # -------------------------------------------------------------
-    # Step 4: กรองข้อมูลตาม Role-Based Access Control (RBAC)
-    # -------------------------------------------------------------
-    # ถ้าเป็น Admin หรือ Reg03 (ผู้บริหาร ปข.3) จะเห็นข้อมูลทั้งหมด
-    if user_role in ["Admin", "Reg03", "admin"]:
+    # 4. กรองข้อมูลตามสิทธิ์ Role
+    role = user_info['role'].upper()
+    dept = user_info['department'].replace("ปจ.", "").replace("ปณ.", "").strip()
+    zipcode = user_info['zipcode']
+
+    # ถ้าเป็น Admin หรือ Reg03 ให้เห็นทั้งหมด
+    if role in ["ADMIN", "REG03"]:
         return df_merged
-        
-    # ถ้าเป็น MANAGER หรือ OFFICER ให้กรองตาม 'สังกัด ปณ.' หรือ 'กลุ่ม ปจ.'
+    
+    # สิทธิ์ MANAGER / OFFICER / CUSTOMER ให้กรองเฉพาะพื้นที่ตนเอง
     else:
-        # ตัดคำว่า 'ปจ.' ออกเพื่อจับคู่กับ 'สังกัด ปณ.' (เช่น 'ปจ.นครราชสีมา' -> 'นครราชสีมา')
-        clean_dept = user_dept.replace("ปจ.", "").replace("ปณ.", "").strip()
-        
-        # กรองข้อมูลที่ 'สังกัด ปณ.' หรือ 'กลุ่ม ปจ.' ตรงกับสังกัดของ User
         filtered_df = df_merged[
-            (df_merged['สังกัด ปณ.'].str.contains(clean_dept, na=False)) |
-            (df_merged['กลุ่ม ปจ.'].str.contains(clean_dept, na=False)) |
-            (df_merged['สังกัด ปณ.'].str.contains(user_zip, na=False))
+            (df_merged['สังกัด ปณ.'].astype(str).str.contains(dept, na=False)) |
+            (df_merged['กลุ่ม ปจ.'].astype(str).str.contains(dept, na=False)) |
+            (df_merged['สังกัด ปณ.'].astype(str).str.contains(zipcode, na=False))
         ]
         return filtered_df
