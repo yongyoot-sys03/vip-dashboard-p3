@@ -1,4 +1,10 @@
 import gradio as gr
+import spaces
+
+@spaces.GPU
+def dummy_gpu_func():
+    return "GPU enabled"
+
 
 def check_status():
     return "✅ เซิร์ฟเวอร์ทำงานสมบูรณ์แล้ว! ไม่มี Error แล้วครับ"
