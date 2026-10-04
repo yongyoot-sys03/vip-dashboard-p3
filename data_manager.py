@@ -58,7 +58,7 @@ def fetch_and_process_data(phone_number: str, year: str):
     client = get_gsheet_client()
     user_info = get_user_profile_by_phone(phone_number)
     
-    data_spreadsheet = client.open("รายได้ลูกค้ารายองค์กร/หน่วยงานราชการ/ห้างร้านต่างๆ ปย.3")
+    data_spreadsheet = client.open("รายได้ลูกค้าองค์กร/หน่วยงานราชการ/ห้างร้านต่างๆ ปข.3")
     
     # 1. ดึง Master List ชีต 'รายชื่อ'
     try:
