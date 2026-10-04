@@ -1,7 +1,1 @@
-gradio==4.36.1
-huggingface_hub==0.24.7
-pandas
-gspread
-google-auth
-scikit-learn
-plotly
+gradio>=5.0.0
