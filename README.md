@@ -1,8 +1,10 @@
 ---
-title: VIP Dashboard P3
-emoji: 🚀
+title: Minimal Test App
+emoji: 🧪
 colorFrom: blue
-colorTo: indigo
-sdk: docker
+colorTo: green
+sdk: gradio
+sdk_version: 5.0.0
+app_file: app.py
 pinned: false
 ---
