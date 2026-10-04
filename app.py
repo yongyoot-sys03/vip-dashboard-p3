@@ -101,27 +101,80 @@ header_html = """
     </div>
 </div>
 """
+# (โค้ดส่วน custom_css และ dummy_gpu_func คงไว้เหมือนเดิมครับ)
 
 # ==========================================
-# 🚀 ส่วนที่ 4: โครงสร้างหน้าเว็บหลัก 
+# 🔐 ฟังก์ชันจัดการสิทธิ์ผู้ใช้งาน (ดึงชื่อคน Login)
+# ==========================================
+def load_user_profile(request: gr.Request):
+    # ถ้ามีการ Login เข้ามา ดึงชื่อ (Username) มาใช้ ถ้าไม่มีให้เป็น ADMIN (สำหรับการรันทดสอบ)
+    username = request.username if request else "ADMIN"
+    
+    # เช็กว่าถ้าเป็นตัวเลข (เช่น 30000) ให้ล็อกสิทธิ์เป็นสาขา ถ้าไม่ใช่ให้เป็นส่วนกลาง
+    role = username if username.isnumeric() else "HQ_ADMIN"
+    
+    # สร้าง HTML Header ใหม่แบบไดนามิกที่แสดงรหัสคน Login จริง
+    header = f"""
+    <div style="display: flex; justify-content: space-between; align-items: flex-start; margin-bottom: 15px; padding: 10px;">
+        <div>
+            <h2 style="margin: 0; color: #1a202c; font-weight: 700; font-size: 22px;">🚀 Dashboard ระบบวิเคราะห์สถิติการใช้บริการไปรษณีย์ของลูกค้ารายใหญ่กลุ่ม A B C และ D ในพื้นที่ ปข.3</h2>
+            <p style="margin: 8px 0 0 0; color: #4a5568; font-size: 14px; font-weight: 500;">ผู้ออกแบบระบบโดย : สำนักงานไปรษณีย์เขต 3 | ส่วนการตลาดและบริการลูกค้า</p>
+        </div>
+        <div style="background-color: #e2e8f0; padding: 10px 20px; border-radius: 15px; box-shadow: inset 3px 3px 6px rgba(163,177,198,0.5), inset -3px -3px 6px rgba(255,255,255,0.8); display: flex; align-items: center; gap: 10px; min-width: max-content;">
+            <div style="width: 12px; height: 12px; background-color: #16a34a; border-radius: 50%; box-shadow: 0 0 5px #16a34a;"></div>
+            <span style="font-weight: 600; color: #2d3748; font-size: 14px;">ผู้ใช้งาน: <span style="color: #dc2626;">{username}</span></span>
+        </div>
+    </div>
+    """
+    return header, role
+
+# ==========================================
+# 🚀 โครงสร้างหน้าเว็บหลัก
 # ==========================================
 with gr.Blocks(title="Dashboard ปข.3", css=custom_css) as demo:
     
-    # วาง Header ไว้ด้านบนสุด
-    gr.HTML(header_html)
+    # ตัวแปรซ่อนสำหรับเก็บ Role ของคนที่ Login
+    user_role_state = gr.State("ADMIN")
     
+    # 1. กล่อง Header ที่จะเปลี่ยนชื่อตามคน Login
+    header_html_box = gr.HTML()
+    
+    # 2. แผงควบคุมหลัก (Global Filters)
+    with gr.Row():
+        with gr.Column(scale=2):
+            year_dropdown = gr.Dropdown(
+                choices=["2023", "2024", "2025", "2026"], 
+                value="2024", 
+                label="📅 เลือกปีงบประมาณ", 
+                interactive=True
+            )
+        # เผื่อไว้สำหรับคนที่เป็น ADMIN สามารถเลือกดูเจาะจงราย ปณ. ได้
+        with gr.Column(scale=2):
+            branch_dropdown = gr.Dropdown(
+                choices=["ทั้งหมด", "30000", "30001", "30002"], 
+                value="ทั้งหมด", 
+                label="🏢 เลือกที่ทำการ (เฉพาะส่วนกลาง)", 
+                interactive=True
+            )
+    
+    # 3. ส่วนแท็บต่างๆ (รับค่าจาก Dropdown ไปใช้งาน)
     with gr.Tabs():
         with gr.Tab("สรุปผู้บริหาร (Executive)"):
             build_tab1()
-            
         with gr.Tab("วิเคราะห์ความเสี่ยง (Risk)"):
             build_tab2()
-            
         with gr.Tab("โอกาสทางธุรกิจ (Opportunity)"):
             build_tab3()
-            
         with gr.Tab("จัดการข้อมูล (Data)"):
             build_tab4()
 
+    # เมื่อเปิดหน้าเว็บขึ้นมา ให้ทำงานฟังก์ชัน load_user_profile ทันที
+    demo.load(
+        fn=load_user_profile, 
+        inputs=None, 
+        outputs=[header_html_box, user_role_state]
+    )
+
+# ใส่ระบบ Auth จำลอง (เปลี่ยนรหัสผ่านจริงได้ตามต้องการ)
 if __name__ == "__main__":
-    demo.launch()
+    demo.launch(auth=[("ADMIN", "password123"), ("30000", "pass30000")])
