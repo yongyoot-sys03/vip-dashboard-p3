@@ -108,7 +108,7 @@ with gr.Blocks(title="Dashboard ปข.3", css=custom_css) as demo:
         with gr.Tab("สรุปผู้บริหาร (Executive)"):
             build_tab1(selected_year, user_phone_state)
         with gr.Tab("วิเคราะห์ความเสี่ยง (Risk)"):
-            build_tab2()
+            build_tab2(selected_year, user_phone_state)
         with gr.Tab("โอกาสทางธุรกิจ (Opportunity)"):
             build_tab3()
         with gr.Tab("จัดการข้อมูล (Data)"):
