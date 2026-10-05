@@ -6,6 +6,10 @@ from data_manager import fetch_and_process_data
 
 def build_tab2(year_input, phone_input_state):
     
+    # 💡 [จุดที่แก้ไข] วางกราฟเปล่าแบบซ่อนไว้ด้านนอกสุด 1 ตัว
+    # เพื่อบังคับให้ Gradio โหลด JavaScript ของ Plotly มาเตรียมไว้บนหน้าเว็บ
+    gr.Plot(visible=False)
+    
     @gr.render(inputs=[year_input, phone_input_state])
     def render_risk_analysis(selected_year, current_phone):
         phone = current_phone if current_phone else "admin"
@@ -131,7 +135,6 @@ def build_tab2(year_input, phone_input_state):
         else:
             fig2 = go.Figure()
             fig2.update_layout(title='📉 ไม่มีข้อมูลลูกค้ากลุ่มต้นทุนสูง', template='plotly_white', height=380)
-
 
         # 3. สร้าง UI หน้าจอ
         with gr.Column():
