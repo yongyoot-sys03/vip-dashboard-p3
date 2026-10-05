@@ -3,6 +3,7 @@ import json
 import pandas as pd
 import gspread
 from google.oauth2.service_account import Credentials
+import time
 
 # ==========================================
 # 🔑 ตั้งค่า ID ของ Google Sheets (เปิดด้วย ID ชัวร์ 100%)
