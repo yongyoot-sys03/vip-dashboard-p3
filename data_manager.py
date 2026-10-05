@@ -11,6 +11,10 @@ import time
 LOGIN_SHEET_ID = "1zzjuRoDoQPrPZqe4AiXi-hDSPt4WcH7SVHaFu1o7wHk"
 DATA_SHEET_ID = "1Y4PnvNiE57rt6MzpmXS1ZKS-oMsGi1iQw6pcfKhFAII"
 
+# ระบบจัดการ Cache ชั่วคราว (ลดการโดนแบน API 429)
+_CACHE_STORAGE = {}
+CACHE_EXPIRE_SECONDS = 300  # จำข้อมูลไว้ 5 นาที (300 วินาที)
+
 def get_gsheet_client():
     """ ฟังก์ชันเชื่อมต่อ Google Sheets API ด้วย Service Account """
     scope = [
@@ -71,8 +75,18 @@ def get_user_profile_by_phone(phone_input: str):
         "zipcode": "admin"
     }
 
-def fetch_and_process_data(phone_number: str, year: str):
+def fetch_and_process_data(phone_number: str, year: str, force_refresh: bool = False):
     """ ดึงและประมวลผลข้อมูลยอดขาย พร้อมคำนวณ ชิ้น/บาท ของแต่ละบริการ """
+    
+    # 🌟 1. เช็ก Cache ก่อนไปดึง Google Sheets
+    cache_key = f"{phone_number}_{year}"
+    current_time = time.time()
+    
+    if not force_refresh and cache_key in _CACHE_STORAGE:
+        cached_df, timestamp = _CACHE_STORAGE[cache_key]
+        if current_time - timestamp < CACHE_EXPIRE_SECONDS:
+            return cached_df.copy() # ส่งข้อมูลที่จำไว้ออกไปเลย ประหยัดโควตา API
+            
     try:
         client = get_gsheet_client()
         user_info = get_user_profile_by_phone(phone_number)
@@ -189,6 +203,9 @@ def fetch_and_process_data(phone_number: str, year: str):
 
         # 🎯 [สำคัญ] บังคับให้ชื่อ Header ทุกคอลัมน์เป็น String เพื่อป้องกัน Gradio Error
         df_merged.columns = [str(c) for c in df_merged.columns]
+
+        # 🌟 2. บันทึกข้อมูลลง Cache ก่อนส่งออกไป
+        _CACHE_STORAGE[cache_key] = (df_merged.copy(), current_time)
 
         return df_merged
 
