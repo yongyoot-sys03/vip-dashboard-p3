@@ -1,7 +1,5 @@
 import gradio as gr
 import pandas as pd
-import plotly.express as px
-import plotly.graph_objects as go
 from data_manager import fetch_and_process_data
 
 def build_tab2(year_input, phone_input_state):
@@ -18,7 +16,6 @@ def build_tab2(year_input, phone_input_state):
             print(f"Error fetching data in tab2: {e}")
             df = pd.DataFrame()
 
-        # ตัวแปรเก็บจำนวนลูกค้ากลุ่มเสี่ยง
         risk_zero_count = 0
         risk_single_count = 0
         risk_yield_count = 0
@@ -46,18 +43,17 @@ def build_tab2(year_input, phone_input_state):
             else:
                 df['ขนส่งโลจิสติกส์_บาท'] = 0.0
 
-            # คำนวณชิ้นรวมเพื่อหา Yield
             pcs_cols = [c for c in df.columns if '_ชิ้น' in str(c)]
             df['ชิ้นงานรวม'] = df[pcs_cols].apply(pd.to_numeric, errors='coerce').fillna(0).sum(axis=1) if pcs_cols else 0
             df['เฉลี่ยต่อชิ้น'] = df.apply(lambda row: (row['ยอดเงินรวม'] / row['ชิ้นงานรวม']) if row['ชิ้นงานรวม'] > 0 else 0, axis=1)
 
-            # 🔴 1. Critical Risk (ยอดเป็น 0)
+            # 🔴 1. Critical Risk
             df_zero_temp = df[df['ยอดเงินรวม'] == 0].copy()
             risk_zero_count = len(df_zero_temp)
             cols_to_show_zero = [c for c in ['รายชื่อลูกค้า', 'กลุ่ม', 'หมวดธุรกิจ', 'สังกัด ปณ.'] if c in df_zero_temp.columns]
             df_zero = df_zero_temp[cols_to_show_zero] if not df_zero_temp.empty else pd.DataFrame({"สถานะ": ["ไม่พบลูกค้ากลุ่มนี้"]})
 
-            # 🟡 2. Dependency Risk (พึ่งพาไปรษณียภัณฑ์ > 90% และไม่มีโลจิสติกส์)
+            # 🟡 2. Dependency Risk
             df_active = df[df['ยอดเงินรวม'] > 0].copy()
             df_active['สัดส่วนไปรษณียภัณฑ์_%'] = (df_active['ไปรษณียภัณฑ์_บาท'] / df_active['ยอดเงินรวม']) * 100
             
@@ -72,7 +68,7 @@ def build_tab2(year_input, phone_input_state):
             else:
                 df_single = pd.DataFrame({"สถานะ": ["ไม่พบลูกค้ากลุ่มนี้"]})
 
-            # 🟠 3. Low Yield (ยอดรวม > 5000 แต่เฉลี่ยต่อชิ้น < 15 บาท)
+            # 🟠 3. Low Yield
             df_yield_temp = df_active[(df_active['ยอดเงินรวม'] > 5000) & (df_active['เฉลี่ยต่อชิ้น'] > 0) & (df_active['เฉลี่ยต่อชิ้น'] < 15)].copy()
             risk_yield_count = len(df_yield_temp)
             
@@ -80,40 +76,25 @@ def build_tab2(year_input, phone_input_state):
                 df_yield_temp_format = df_yield_temp.copy()
                 df_yield_temp_format['ยอดเงินรวม'] = df_yield_temp_format['ยอดเงินรวม'].apply(lambda x: f"{x:,.2f}")
                 df_yield_temp_format['ชิ้นงานรวม'] = df_yield_temp_format['ชิ้นงานรวม'].apply(lambda x: f"{x:,.0f}")
-                df_yield_temp_format['เฉลี่ยต่อชิ้น'] = df_yield_temp_format['เฉลี่ยต่อชิ้น'].apply(lambda x: f"{x:,.2f}")
-                cols_yield = [c for c in ['รายชื่อลูกค้า', 'สังกัด ปณ.', 'ชิ้นงานรวม', 'ยอดเงินรวม', 'เฉลี่ยต่อชิ้น'] if c in df_yield_temp_format.columns]
+                df_yield_temp_format['เฉลี่ยต่อชิ้น_format'] = df_yield_temp_format['เฉลี่ยต่อชิ้น'].apply(lambda x: f"{x:,.2f}")
+                cols_yield = [c for c in ['รายชื่อลูกค้า', 'สังกัด ปณ.', 'ชิ้นงานรวม', 'ยอดเงินรวม', 'เฉลี่ยต่อชิ้น_format'] if c in df_yield_temp_format.columns]
                 df_yield = df_yield_temp_format[cols_yield]
+                df_yield.rename(columns={'เฉลี่ยต่อชิ้น_format': 'เฉลี่ยต่อชิ้น'}, inplace=True)
             else:
                 df_yield = pd.DataFrame({"สถานะ": ["ไม่พบลูกค้ากลุ่มนี้"]})
 
         # ==========================================
-        # 📊 สร้างกราฟ Plotly และแปลงเป็น HTML
+        # 📊 สร้าง Dataframe สำหรับกราฟ Native ของ Gradio
         # ==========================================
-        
-        # --- กราฟ 1 ---
-        fig1 = go.Figure(data=[go.Bar(
-            x=['ยอดเป็น 0', 'พึ่งพาจดหมายอย่างเดียว', 'กลุ่มต้นทุนสูง (Yield < 15)'],
-            y=[risk_zero_count, risk_single_count, risk_yield_count],
-            text=[f"{risk_zero_count} ราย", f"{risk_single_count} ราย", f"{risk_yield_count} ราย"],
-            textposition='auto',
-            marker_color=['#ef4444', '#f59e0b', '#f97316'],
-            textfont=dict(size=14, color='white', weight='bold')
-        )])
-        fig1.update_layout(title='📊 เปรียบเทียบจำนวนลูกค้ากลุ่มเสี่ยง', yaxis_title='จำนวนลูกค้า (ราย)', template='plotly_white', height=380, margin=dict(l=40, r=40, t=60, b=40))
+        df_plot1 = pd.DataFrame({
+            "ประเภทความเสี่ยง": ["ยอดเป็น 0", "พึ่งพาจดหมาย", "ต้นทุนสูง (Yield<15)"],
+            "จำนวนลูกค้า": [risk_zero_count, risk_single_count, risk_yield_count]
+        })
 
-        # --- กราฟ 2 ---
         if not df_yield_temp.empty:
             df_plot2 = df_yield_temp.sort_values('เฉลี่ยต่อชิ้น', ascending=True).head(10)
-            fig2 = px.bar(df_plot2, x='เฉลี่ยต่อชิ้น', y='รายชื่อลูกค้า', orientation='h', text='เฉลี่ยต่อชิ้น', title='📉 Top 10 ลูกค้ากลุ่มต้นทุนสูง (Yield ต่ำสุด)', color_discrete_sequence=['#f97316'])
-            fig2.update_traces(texttemplate=' %{text:.2f} บ.', textposition='outside', textfont=dict(size=12, weight='bold'))
-            fig2.update_layout(yaxis={'categoryorder':'total descending'}, xaxis_title='ค่าเฉลี่ยรายได้ต่อชิ้น (บาท)', yaxis_title='', template='plotly_white', height=380, margin=dict(l=20, r=40, t=60, b=40))
         else:
-            fig2 = go.Figure()
-            fig2.update_layout(title='📉 ไม่มีข้อมูลลูกค้ากลุ่มต้นทุนสูง', template='plotly_white', height=380)
-
-        # 🎯 แปลง Figure เป็น HTML string พร้อมโหลดไลบรารี CDN อัตโนมัติ
-        plot1_html = fig1.to_html(full_html=False, include_plotlyjs='cdn', config={'displayModeBar': False})
-        plot2_html = fig2.to_html(full_html=False, include_plotlyjs='cdn', config={'displayModeBar': False})
+            df_plot2 = pd.DataFrame({"รายชื่อลูกค้า": ["ไม่มีข้อมูล"], "เฉลี่ยต่อชิ้น": [0]})
 
         # 3. สร้าง UI หน้าจอ
         with gr.Column():
@@ -144,12 +125,29 @@ def build_tab2(year_input, phone_input_state):
 
             gr.Markdown("---")
             
-            # 📈 แสดงผลกราฟผ่าน HTML แทน gr.Plot
+            # 📈 แสดงผลกราฟด้วย gr.BarPlot (รับรองผล 100%)
             with gr.Row():
-                with gr.Column():
-                    gr.HTML(f"<div style='border: 1px solid #e5e7eb; border-radius: 8px; padding: 10px; background: white;'>{plot1_html}</div>")
-                with gr.Column():
-                    gr.HTML(f"<div style='border: 1px solid #e5e7eb; border-radius: 8px; padding: 10px; background: white;'>{plot2_html}</div>")
+                gr.BarPlot(
+                    df_plot1,
+                    x="ประเภทความเสี่ยง",
+                    y="จำนวนลูกค้า",
+                    title="📊 เปรียบเทียบจำนวนลูกค้ากลุ่มเสี่ยง",
+                    tooltip=["ประเภทความเสี่ยง", "จำนวนลูกค้า"],
+                    color="ประเภทความเสี่ยง",
+                    height=350,
+                    width=400
+                )
+                gr.BarPlot(
+                    df_plot2,
+                    x="เฉลี่ยต่อชิ้น",
+                    y="รายชื่อลูกค้า",
+                    title="📉 Top 10 ลูกค้ากลุ่มต้นทุนสูง (Yield ต่ำสุด)",
+                    tooltip=["รายชื่อลูกค้า", "เฉลี่ยต่อชิ้น"],
+                    color="รายชื่อลูกค้า",
+                    orientation="h",
+                    height=350,
+                    width=400
+                )
 
             gr.Markdown("---")
             
