@@ -6,10 +6,6 @@ from data_manager import fetch_and_process_data
 
 def build_tab2(year_input, phone_input_state):
     
-    # 💡 [จุดที่แก้ไข] วางกราฟเปล่าแบบซ่อนไว้ด้านนอกสุด 1 ตัว
-    # เพื่อบังคับให้ Gradio โหลด JavaScript ของ Plotly มาเตรียมไว้บนหน้าเว็บ
-    gr.Plot(visible=False)
-    
     @gr.render(inputs=[year_input, phone_input_state])
     def render_risk_analysis(selected_year, current_phone):
         phone = current_phone if current_phone else "admin"
@@ -91,10 +87,10 @@ def build_tab2(year_input, phone_input_state):
                 df_yield = pd.DataFrame({"สถานะ": ["ไม่พบลูกค้ากลุ่มนี้"]})
 
         # ==========================================
-        # 📊 สร้างกราฟ Plotly
+        # 📊 สร้างกราฟ Plotly และแปลงเป็น HTML
         # ==========================================
         
-        # --- กราฟ 1: แท่งเปรียบเทียบจำนวนลูกค้ากลุ่มเสี่ยง ---
+        # --- กราฟ 1 ---
         fig1 = go.Figure(data=[go.Bar(
             x=['ยอดเป็น 0', 'พึ่งพาจดหมายอย่างเดียว', 'กลุ่มต้นทุนสูง (Yield < 15)'],
             y=[risk_zero_count, risk_single_count, risk_yield_count],
@@ -103,38 +99,21 @@ def build_tab2(year_input, phone_input_state):
             marker_color=['#ef4444', '#f59e0b', '#f97316'],
             textfont=dict(size=14, color='white', weight='bold')
         )])
-        fig1.update_layout(
-            title='📊 เปรียบเทียบจำนวนลูกค้ากลุ่มเสี่ยง',
-            yaxis_title='จำนวนลูกค้า (ราย)',
-            template='plotly_white',
-            height=380,
-            margin=dict(l=40, r=40, t=60, b=40)
-        )
+        fig1.update_layout(title='📊 เปรียบเทียบจำนวนลูกค้ากลุ่มเสี่ยง', yaxis_title='จำนวนลูกค้า (ราย)', template='plotly_white', height=380, margin=dict(l=40, r=40, t=60, b=40))
 
-        # --- กราฟ 2: Top 10 ลูกค้า Yield ต่ำสุด ---
+        # --- กราฟ 2 ---
         if not df_yield_temp.empty:
             df_plot2 = df_yield_temp.sort_values('เฉลี่ยต่อชิ้น', ascending=True).head(10)
-            fig2 = px.bar(
-                df_plot2, 
-                x='เฉลี่ยต่อชิ้น', 
-                y='รายชื่อลูกค้า',
-                orientation='h',
-                text='เฉลี่ยต่อชิ้น',
-                title='📉 Top 10 ลูกค้ากลุ่มต้นทุนสูง (Yield ต่ำสุด)',
-                color_discrete_sequence=['#f97316']
-            )
+            fig2 = px.bar(df_plot2, x='เฉลี่ยต่อชิ้น', y='รายชื่อลูกค้า', orientation='h', text='เฉลี่ยต่อชิ้น', title='📉 Top 10 ลูกค้ากลุ่มต้นทุนสูง (Yield ต่ำสุด)', color_discrete_sequence=['#f97316'])
             fig2.update_traces(texttemplate=' %{text:.2f} บ.', textposition='outside', textfont=dict(size=12, weight='bold'))
-            fig2.update_layout(
-                yaxis={'categoryorder':'total descending'}, 
-                xaxis_title='ค่าเฉลี่ยรายได้ต่อชิ้น (บาท)', 
-                yaxis_title='',
-                template='plotly_white', 
-                height=380,
-                margin=dict(l=20, r=40, t=60, b=40)
-            )
+            fig2.update_layout(yaxis={'categoryorder':'total descending'}, xaxis_title='ค่าเฉลี่ยรายได้ต่อชิ้น (บาท)', yaxis_title='', template='plotly_white', height=380, margin=dict(l=20, r=40, t=60, b=40))
         else:
             fig2 = go.Figure()
             fig2.update_layout(title='📉 ไม่มีข้อมูลลูกค้ากลุ่มต้นทุนสูง', template='plotly_white', height=380)
+
+        # 🎯 แปลง Figure เป็น HTML string พร้อมโหลดไลบรารี CDN อัตโนมัติ
+        plot1_html = fig1.to_html(full_html=False, include_plotlyjs='cdn', config={'displayModeBar': False})
+        plot2_html = fig2.to_html(full_html=False, include_plotlyjs='cdn', config={'displayModeBar': False})
 
         # 3. สร้าง UI หน้าจอ
         with gr.Column():
@@ -165,10 +144,12 @@ def build_tab2(year_input, phone_input_state):
 
             gr.Markdown("---")
             
-            # 📈 แสดงผลกราฟ 2 ตัวเคียงข้างกัน
+            # 📈 แสดงผลกราฟผ่าน HTML แทน gr.Plot
             with gr.Row():
-                gr.Plot(value=fig1, label="เปรียบเทียบความเสี่ยง")
-                gr.Plot(value=fig2, label="Top 10 ต้นทุนสูง")
+                with gr.Column():
+                    gr.HTML(f"<div style='border: 1px solid #e5e7eb; border-radius: 8px; padding: 10px; background: white;'>{plot1_html}</div>")
+                with gr.Column():
+                    gr.HTML(f"<div style='border: 1px solid #e5e7eb; border-radius: 8px; padding: 10px; background: white;'>{plot2_html}</div>")
 
             gr.Markdown("---")
             
