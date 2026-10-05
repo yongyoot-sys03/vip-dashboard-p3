@@ -1,5 +1,7 @@
 import gradio as gr
 import pandas as pd
+import plotly.express as px
+import plotly.graph_objects as go
 from data_manager import fetch_and_process_data
 
 def build_tab2(year_input, phone_input_state):
@@ -21,11 +23,14 @@ def build_tab2(year_input, phone_input_state):
         risk_single_count = 0
         risk_yield_count = 0
         
-        # 🌟 จุดที่แก้ไข 1: ใส่ Dataframe สำรองที่มีชื่อคอลัมน์เป็น String เสมอ เพื่อกัน Gradio Error แครช
         fallback_df = pd.DataFrame({"สถานะ": ["ไม่พบข้อมูล หรือกำลังโหลดข้อมูล..."]})
         df_zero = fallback_df.copy()
         df_single = fallback_df.copy()
         df_yield = fallback_df.copy()
+
+        df_zero_temp = pd.DataFrame()
+        df_single_temp = pd.DataFrame()
+        df_yield_temp = pd.DataFrame()
 
         # 2. ประมวลผลความเสี่ยง
         if not df.empty:
@@ -72,13 +77,61 @@ def build_tab2(year_input, phone_input_state):
             risk_yield_count = len(df_yield_temp)
             
             if not df_yield_temp.empty:
-                df_yield_temp['ยอดเงินรวม'] = df_yield_temp['ยอดเงินรวม'].apply(lambda x: f"{x:,.2f}")
-                df_yield_temp['ชิ้นงานรวม'] = df_yield_temp['ชิ้นงานรวม'].apply(lambda x: f"{x:,.0f}")
-                df_yield_temp['เฉลี่ยต่อชิ้น'] = df_yield_temp['เฉลี่ยต่อชิ้น'].apply(lambda x: f"{x:,.2f}")
-                cols_yield = [c for c in ['รายชื่อลูกค้า', 'สังกัด ปณ.', 'ชิ้นงานรวม', 'ยอดเงินรวม', 'เฉลี่ยต่อชิ้น'] if c in df_yield_temp.columns]
-                df_yield = df_yield_temp[cols_yield]
+                df_yield_temp_format = df_yield_temp.copy()
+                df_yield_temp_format['ยอดเงินรวม'] = df_yield_temp_format['ยอดเงินรวม'].apply(lambda x: f"{x:,.2f}")
+                df_yield_temp_format['ชิ้นงานรวม'] = df_yield_temp_format['ชิ้นงานรวม'].apply(lambda x: f"{x:,.0f}")
+                df_yield_temp_format['เฉลี่ยต่อชิ้น'] = df_yield_temp_format['เฉลี่ยต่อชิ้น'].apply(lambda x: f"{x:,.2f}")
+                cols_yield = [c for c in ['รายชื่อลูกค้า', 'สังกัด ปณ.', 'ชิ้นงานรวม', 'ยอดเงินรวม', 'เฉลี่ยต่อชิ้น'] if c in df_yield_temp_format.columns]
+                df_yield = df_yield_temp_format[cols_yield]
             else:
                 df_yield = pd.DataFrame({"สถานะ": ["ไม่พบลูกค้ากลุ่มนี้"]})
+
+        # ==========================================
+        # 📊 สร้างกราฟ Plotly
+        # ==========================================
+        
+        # --- กราฟ 1: แท่งเปรียบเทียบจำนวนลูกค้ากลุ่มเสี่ยง ---
+        fig1 = go.Figure(data=[go.Bar(
+            x=['ยอดเป็น 0', 'พึ่งพาจดหมายอย่างเดียว', 'กลุ่มต้นทุนสูง (Yield < 15)'],
+            y=[risk_zero_count, risk_single_count, risk_yield_count],
+            text=[f"{risk_zero_count} ราย", f"{risk_single_count} ราย", f"{risk_yield_count} ราย"],
+            textposition='auto',
+            marker_color=['#ef4444', '#f59e0b', '#f97316'],
+            textfont=dict(size=14, color='white', weight='bold')
+        )])
+        fig1.update_layout(
+            title='📊 เปรียบเทียบจำนวนลูกค้ากลุ่มเสี่ยง',
+            yaxis_title='จำนวนลูกค้า (ราย)',
+            template='plotly_white',
+            height=380,
+            margin=dict(l=40, r=40, t=60, b=40)
+        )
+
+        # --- กราฟ 2: Top 10 ลูกค้า Yield ต่ำสุด ---
+        if not df_yield_temp.empty:
+            df_plot2 = df_yield_temp.sort_values('เฉลี่ยต่อชิ้น', ascending=True).head(10)
+            fig2 = px.bar(
+                df_plot2, 
+                x='เฉลี่ยต่อชิ้น', 
+                y='รายชื่อลูกค้า',
+                orientation='h',
+                text='เฉลี่ยต่อชิ้น',
+                title='📉 Top 10 ลูกค้ากลุ่มต้นทุนสูง (Yield ต่ำสุด)',
+                color_discrete_sequence=['#f97316']
+            )
+            fig2.update_traces(texttemplate=' %{text:.2f} บ.', textposition='outside', textfont=dict(size=12, weight='bold'))
+            fig2.update_layout(
+                yaxis={'categoryorder':'total descending'}, 
+                xaxis_title='ค่าเฉลี่ยรายได้ต่อชิ้น (บาท)', 
+                yaxis_title='',
+                template='plotly_white', 
+                height=380,
+                margin=dict(l=20, r=40, t=60, b=40)
+            )
+        else:
+            fig2 = go.Figure()
+            fig2.update_layout(title='📉 ไม่มีข้อมูลลูกค้ากลุ่มต้นทุนสูง', template='plotly_white', height=380)
+
 
         # 3. สร้าง UI หน้าจอ
         with gr.Column():
@@ -109,24 +162,36 @@ def build_tab2(year_input, phone_input_state):
 
             gr.Markdown("---")
             
+            # 📈 แสดงผลกราฟ 2 ตัวเคียงข้างกัน
+            with gr.Row():
+                gr.Plot(fig1)
+                gr.Plot(fig2)
+
+            gr.Markdown("---")
+            
             with gr.Row():
                 gr.HTML(f"""
                 <div style='background-color:#fee2e2; border-left: 6px solid #ef4444; padding:20px; border-radius:8px; box-shadow: 4px 4px 10px rgba(163,177,198,0.4); line-height: 1.8;'>
-                    <h4 style='margin-top:0; color:#b91c1c;'>🤖 AI Risk Detector (วิเคราะห์จุดเปราะบาง)</h4>
-                    <p style='margin-bottom:10px;'>จากการสแกนฐานข้อมูลลูกค้ารายใหญ่ในสิทธิ์ความรับผิดชอบของคุณ พบจุดที่ต้องเฝ้าระวังด่วนดังนี้:</p>
-                    <ul style='margin-bottom:10px; color:#7f1d1d;'>
-                        <li>พบลูกค้า VIP จำนวน <b>{risk_zero_count} ราย</b> ที่ไม่มีความเคลื่อนไหวทางบัญชี (ยอด = 0) จำเป็นต้องส่งทีมเข้าพบเพื่อตรวจสอบการใช้บริการคู่แข่ง (Churn Risk)</li>
-                        <li>พบลูกค้า <b>{risk_single_count} ราย</b> ที่ผูกพันกับบริการไปรษณียภัณฑ์มากกว่า 90% โดยไม่มีการใช้บริการกลุ่มโลจิสติกส์ ถือเป็นความเสี่ยงระยะยาวหากลูกค้าทำ Digital Transformation</li>
-                        <li>ในเชิงความคุ้มค่า (Margin) มี <b>{risk_yield_count} ราย</b> ที่มียอดจัดส่งสูงแต่ค่าเฉลี่ยรายได้ต่อชิ้นต่ำกว่า 15 บาท อาจส่งผลต่อกำไรสุทธิของการปฏิบัติงาน</li>
+                    <h4 style='margin-top:0; color:#b91c1c; font-size: 18px;'>🤖 AI Risk Detector (สรุปวิเคราะห์จุดเปราะบางเชิงลึก)</h4>
+                    <p style='margin-bottom:12px; font-size: 15px;'>ระบบ Machine Learning และ Data Analytics ได้ทำการสแกนฐานข้อมูลลูกค้ารายใหญ่ในสิทธิ์ความรับผิดชอบของคุณ พบจุดที่ต้องเฝ้าระวังอย่างเร่งด่วนดังนี้:</p>
+                    
+                    <ul style='margin-bottom:15px; color:#7f1d1d; font-size: 15px;'>
+                        <li style='margin-bottom:8px;'><b>🛑 ปัญหา Churn Rate (ลูกค้าหาย):</b> พบลูกค้า VIP จำนวน <b>{risk_zero_count} ราย</b> ที่ไม่มีความเคลื่อนไหวทางบัญชีหรือยอดเป็น 0 ซึ่งถือเป็น <b>Critical Risk</b> ทีมขายต้องเร่งตรวจสอบว่าลูกค้าเปลี่ยนไปใช้บริการขนส่งของเอกชนรายอื่นหรือไม่ และรีบยื่นข้อเสนอพิเศษเพื่อดึงลูกค้ากลับมา</li>
+                        <li style='margin-bottom:8px;'><b>⚠️ ความเสี่ยงด้านโครงสร้าง (Dependency Risk):</b> พบลูกค้า <b>{risk_single_count} ราย</b> ที่ผูกพันรายได้กับบริการจดหมายเพียงอย่างเดียว (>90%) หากในอนาคตหน่วยงานเหล่านี้ปรับเปลี่ยนนโยบายเป็น e-Document หรือ Paperless รายได้ส่วนนี้ของ ปข.3 จะหายไปทันที จึงจำเป็นต้องกระจายความเสี่ยง (Diversify) ทันที</li>
+                        <li style='margin-bottom:8px;'><b>📉 ปัญหาอัตรากำไร (Margin Squeeze):</b> จากกราฟ Top 10 Low Yield พบว่ามีลูกค้า <b>{risk_yield_count} ราย</b> ที่มียอดปริมาณชิ้นงานสูงมาก แต่ให้ค่าเฉลี่ยรายได้ต่อชิ้น <b>ต่ำกว่า 15 บาท</b> ซึ่งเมื่อหักลบต้นทุนการขนส่งและการคัดแยกแล้ว อาจเสี่ยงทำให้ ปข.3 ขาดทุนกำไรในเชิงปฏิบัติการ (Operational Loss)</li>
                     </ul>
-                    <p style='margin-bottom:0;'><b>🎯 Action Plan:</b> แนะนำให้ดึงรายชื่อจากตาราง <b>"เสี่ยงพึ่งพาจดหมายอย่างเดียว"</b> เพื่อทำแคมเปญกระตุ้นยอด Logispost หรือ eCo-Post ทันที</p>
+                    
+                    <div style='background-color: white; padding: 15px; border-radius: 8px; border-left: 4px solid #16a34a;'>
+                        <p style='margin-bottom:0; color: #16a34a; font-size: 15px;'><b>🎯 Action Plan ที่ควรทำทันที:</b> <br>
+                        1. มอบหมายหัวหน้า ปณ. ลงพื้นที่เจรจากับลูกค้า <b>{risk_single_count} ราย</b> เพื่อทำ Cross-selling เสนอบริการ Logispost, EMS หรือ eCo-Post ควบคู่ไปกับจดหมาย<br>
+                        2. ประเมินการปรับโครงสร้างราคาหรือทำ Bulk Discount ใหม่ให้กับกลุ่มลูกค้า Yield ต่ำ เพื่อผลักดันให้รายได้ต่อชิ้นขยับขึ้นไปแตะจุดคุ้มทุน (Break-even)</p>
+                    </div>
                 </div>
                 """)
 
             gr.Markdown("---")
             gr.Markdown("### 📋 ตารางเฝ้าระวังลูกค้ากลุ่มเสี่ยง (Watchlist)")
             
-            # 🌟 จุดที่แก้ไข 2: นำพารามิเตอร์ max_height ออก ป้องกัน Error ใน Gradio บางเวอร์ชัน
             with gr.Accordion("🔴 กลุ่มลูกค้าหยุดใช้บริการ (ยอดเป็น 0 บาท) - ต้องติดตามด่วน", open=True):
                 gr.Dataframe(df_zero, interactive=False)
                 
