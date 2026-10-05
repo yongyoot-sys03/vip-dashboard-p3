@@ -164,8 +164,8 @@ def build_tab2(year_input, phone_input_state):
             
             # 📈 แสดงผลกราฟ 2 ตัวเคียงข้างกัน
             with gr.Row():
-                gr.Plot(fig1)
-                gr.Plot(fig2)
+                gr.Plot(value=fig1, label="เปรียบเทียบความเสี่ยง")
+                gr.Plot(value=fig2, label="Top 10 ต้นทุนสูง")
 
             gr.Markdown("---")
             
