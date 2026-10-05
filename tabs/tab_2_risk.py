@@ -21,9 +21,11 @@ def build_tab2(year_input, phone_input_state):
         risk_single_count = 0
         risk_yield_count = 0
         
-        df_zero = pd.DataFrame()
-        df_single = pd.DataFrame()
-        df_yield = pd.DataFrame()
+        # 🌟 จุดที่แก้ไข 1: ใส่ Dataframe สำรองที่มีชื่อคอลัมน์เป็น String เสมอ เพื่อกัน Gradio Error แครช
+        fallback_df = pd.DataFrame({"สถานะ": ["ไม่พบข้อมูล หรือกำลังโหลดข้อมูล..."]})
+        df_zero = fallback_df.copy()
+        df_single = fallback_df.copy()
+        df_yield = fallback_df.copy()
 
         # 2. ประมวลผลความเสี่ยง
         if not df.empty:
@@ -45,36 +47,36 @@ def build_tab2(year_input, phone_input_state):
             df['เฉลี่ยต่อชิ้น'] = df.apply(lambda row: (row['ยอดเงินรวม'] / row['ชิ้นงานรวม']) if row['ชิ้นงานรวม'] > 0 else 0, axis=1)
 
             # 🔴 1. Critical Risk (ยอดเป็น 0)
-            df_zero = df[df['ยอดเงินรวม'] == 0].copy()
-            risk_zero_count = len(df_zero)
-            cols_to_show_zero = [c for c in ['รายชื่อลูกค้า', 'กลุ่ม', 'หมวดธุรกิจ', 'สังกัด ปณ.'] if c in df_zero.columns]
-            df_zero = df_zero[cols_to_show_zero] if not df_zero.empty else pd.DataFrame({"สถานะ": ["ไม่พบลูกค้ากลุ่มนี้"]})
+            df_zero_temp = df[df['ยอดเงินรวม'] == 0].copy()
+            risk_zero_count = len(df_zero_temp)
+            cols_to_show_zero = [c for c in ['รายชื่อลูกค้า', 'กลุ่ม', 'หมวดธุรกิจ', 'สังกัด ปณ.'] if c in df_zero_temp.columns]
+            df_zero = df_zero_temp[cols_to_show_zero] if not df_zero_temp.empty else pd.DataFrame({"สถานะ": ["ไม่พบลูกค้ากลุ่มนี้"]})
 
             # 🟡 2. Dependency Risk (พึ่งพาไปรษณียภัณฑ์ > 90% และไม่มีโลจิสติกส์)
             df_active = df[df['ยอดเงินรวม'] > 0].copy()
             df_active['สัดส่วนไปรษณียภัณฑ์_%'] = (df_active['ไปรษณียภัณฑ์_บาท'] / df_active['ยอดเงินรวม']) * 100
             
-            df_single = df_active[(df_active['สัดส่วนไปรษณียภัณฑ์_%'] > 90) & (df_active['ขนส่งโลจิสติกส์_บาท'] == 0)].copy()
-            risk_single_count = len(df_single)
+            df_single_temp = df_active[(df_active['สัดส่วนไปรษณียภัณฑ์_%'] > 90) & (df_active['ขนส่งโลจิสติกส์_บาท'] == 0)].copy()
+            risk_single_count = len(df_single_temp)
             
-            if not df_single.empty:
-                df_single['ยอดเงินรวม'] = df_single['ยอดเงินรวม'].apply(lambda x: f"{x:,.2f}")
-                df_single['สัดส่วนไปรษณียภัณฑ์_%'] = df_single['สัดส่วนไปรษณียภัณฑ์_%'].apply(lambda x: f"{x:.1f}%")
-                cols_single = [c for c in ['รายชื่อลูกค้า', 'สังกัด ปณ.', 'ยอดเงินรวม', 'สัดส่วนไปรษณียภัณฑ์_%'] if c in df_single.columns]
-                df_single = df_single[cols_single]
+            if not df_single_temp.empty:
+                df_single_temp['ยอดเงินรวม'] = df_single_temp['ยอดเงินรวม'].apply(lambda x: f"{x:,.2f}")
+                df_single_temp['สัดส่วนไปรษณียภัณฑ์_%'] = df_single_temp['สัดส่วนไปรษณียภัณฑ์_%'].apply(lambda x: f"{x:.1f}%")
+                cols_single = [c for c in ['รายชื่อลูกค้า', 'สังกัด ปณ.', 'ยอดเงินรวม', 'สัดส่วนไปรษณียภัณฑ์_%'] if c in df_single_temp.columns]
+                df_single = df_single_temp[cols_single]
             else:
                 df_single = pd.DataFrame({"สถานะ": ["ไม่พบลูกค้ากลุ่มนี้"]})
 
             # 🟠 3. Low Yield (ยอดรวม > 5000 แต่เฉลี่ยต่อชิ้น < 15 บาท)
-            df_yield = df_active[(df_active['ยอดเงินรวม'] > 5000) & (df_active['เฉลี่ยต่อชิ้น'] > 0) & (df_active['เฉลี่ยต่อชิ้น'] < 15)].copy()
-            risk_yield_count = len(df_yield)
+            df_yield_temp = df_active[(df_active['ยอดเงินรวม'] > 5000) & (df_active['เฉลี่ยต่อชิ้น'] > 0) & (df_active['เฉลี่ยต่อชิ้น'] < 15)].copy()
+            risk_yield_count = len(df_yield_temp)
             
-            if not df_yield.empty:
-                df_yield['ยอดเงินรวม'] = df_yield['ยอดเงินรวม'].apply(lambda x: f"{x:,.2f}")
-                df_yield['ชิ้นงานรวม'] = df_yield['ชิ้นงานรวม'].apply(lambda x: f"{x:,.0f}")
-                df_yield['เฉลี่ยต่อชิ้น'] = df_yield['เฉลี่ยต่อชิ้น'].apply(lambda x: f"{x:,.2f}")
-                cols_yield = [c for c in ['รายชื่อลูกค้า', 'สังกัด ปณ.', 'ชิ้นงานรวม', 'ยอดเงินรวม', 'เฉลี่ยต่อชิ้น'] if c in df_yield.columns]
-                df_yield = df_yield[cols_yield]
+            if not df_yield_temp.empty:
+                df_yield_temp['ยอดเงินรวม'] = df_yield_temp['ยอดเงินรวม'].apply(lambda x: f"{x:,.2f}")
+                df_yield_temp['ชิ้นงานรวม'] = df_yield_temp['ชิ้นงานรวม'].apply(lambda x: f"{x:,.0f}")
+                df_yield_temp['เฉลี่ยต่อชิ้น'] = df_yield_temp['เฉลี่ยต่อชิ้น'].apply(lambda x: f"{x:,.2f}")
+                cols_yield = [c for c in ['รายชื่อลูกค้า', 'สังกัด ปณ.', 'ชิ้นงานรวม', 'ยอดเงินรวม', 'เฉลี่ยต่อชิ้น'] if c in df_yield_temp.columns]
+                df_yield = df_yield_temp[cols_yield]
             else:
                 df_yield = pd.DataFrame({"สถานะ": ["ไม่พบลูกค้ากลุ่มนี้"]})
 
@@ -124,11 +126,12 @@ def build_tab2(year_input, phone_input_state):
             gr.Markdown("---")
             gr.Markdown("### 📋 ตารางเฝ้าระวังลูกค้ากลุ่มเสี่ยง (Watchlist)")
             
+            # 🌟 จุดที่แก้ไข 2: นำพารามิเตอร์ max_height ออก ป้องกัน Error ใน Gradio บางเวอร์ชัน
             with gr.Accordion("🔴 กลุ่มลูกค้าหยุดใช้บริการ (ยอดเป็น 0 บาท) - ต้องติดตามด่วน", open=True):
-                gr.Dataframe(df_zero, interactive=False, max_height=300)
+                gr.Dataframe(df_zero, interactive=False)
                 
             with gr.Accordion("🟡 กลุ่มเปราะบาง (ใช้แต่จดหมาย ไม่ใช้โลจิสติกส์) - โอกาสทำ Cross-selling", open=False):
-                gr.Dataframe(df_single, interactive=False, max_height=300)
+                gr.Dataframe(df_single, interactive=False)
                 
             with gr.Accordion("🟠 กลุ่มต้นทุนสูง (Yield ต่ำกว่า 15 บาท/ชิ้น) - เฝ้าระวังต้นทุน", open=False):
-                gr.Dataframe(df_yield, interactive=False, max_height=300)
+                gr.Dataframe(df_yield, interactive=False)
